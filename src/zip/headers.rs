@@ -197,6 +197,7 @@ pub enum HeaderId {
     InfoZipUnixNew,
     MicrosoftOpenPackagingGrowthHint,
     SmsQDos,
+    UnknownHeader(u8, u8)
 }
 
 fn parse_header_id(input: &[u8]) -> IResult<&[u8], HeaderId, ZipError> {
@@ -252,7 +253,7 @@ fn parse_header_id(input: &[u8]) -> IResult<&[u8], HeaderId, ZipError> {
             0x7855 => InfoZipUnixNew,
             0xa220 => MicrosoftOpenPackagingGrowthHint,
             0xfd4a => SmsQDos,
-            _ => return fail(ZipError::InvalidHeaderId),
+            _ => UnknownHeader(input[0], input[1]),
         },
     ))
 }
@@ -304,16 +305,16 @@ impl LocalFileHeader {
         ))(i)
         .map_nom_err(|e| {
             if let ZipError::NomError(_) = e {
-                ZipError::InvalidLocalFileHeader
+                ZipError::InvalidLocalFileHeaderBasicStructure
             } else {
                 e
             }
         })?;
 
         let (i, filename) = nom::bytes::streaming::take::<_, _, ZipError>(fname_len)(i)
-            .map_nom_err(|_| ZipError::InvalidLocalFileHeader)?;
+            .map_nom_err(|e| e.replace_external(ZipError::InvalidLocalFileHeaderFilename))?;
         let (i, extra_fields) = parse_extra_fields(i, extra_field_len)
-            .map_nom_err(|e| ZipError::InvalidLocalFileHeader)?;
+            .map_nom_err(|e| e.replace_external(ZipError::InvalidLocalFileHeaderExtraFields))?;
         Ok((
             i,
             LocalFileHeader {

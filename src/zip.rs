@@ -40,13 +40,25 @@ pub enum ZipError {
     InvalidCompressionMethod,
     InvalidHeaderId,
     NotLocalFileHeader,
-    InvalidLocalFileHeader,
+    InvalidLocalFileHeaderBasicStructure,
+    InvalidLocalFileHeaderFilename,
+    InvalidLocalFileHeaderExtraFields,
     InvalidDeflateStream,
     InvalidDataDescriptor,
     NotCentralDirHeader,
     InvalidCentralDirHeader,
     NomError(ErrorKind),
     OtherError,
+}
+
+impl ZipError {
+    fn replace_external(self, with: ZipError) -> Self {
+        match self {
+            Self::NomError(_) => with,
+            Self::OtherError => with,
+            _ => self,
+        }
+    }
 }
 
 impl nom::error::ParseError<&[u8]> for ZipError {
@@ -273,12 +285,12 @@ impl ZipFile {
             Err(nom::Err::Error(_e)) => (
                 0,
                 InternalState::Error,
-                ParseResult::Error(ZipError::InvalidLocalFileHeader),
+                ParseResult::Error(_e),
             ),
             Err(nom::Err::Failure(_e)) => (
                 0,
                 InternalState::Error,
-                ParseResult::Error(ZipError::InvalidLocalFileHeader),
+                ParseResult::Error(_e),
             ),
         }
     }
@@ -513,7 +525,7 @@ pub fn peek_stream(input: &[u8]) -> Result<(&[u8], ZipFile), ZipError> {
             },
         )),
         Err(nom::Err::Error(ZipError::NotLocalFileHeader)) => Err(ZipError::NotLocalFileHeader),
-        Err(nom::Err::Error(_e)) => Err(ZipError::InvalidLocalFileHeader),
-        Err(nom::Err::Failure(_e)) => Err(ZipError::InvalidLocalFileHeader),
+        Err(nom::Err::Error(_e)) => Err(_e),
+        Err(nom::Err::Failure(_e)) => Err(_e),
     }
 }
